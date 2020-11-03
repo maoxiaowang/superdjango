@@ -16,7 +16,6 @@ from django.views.generic import (
     CreateView as _CreateView, UpdateView as _UpdateView, View as _View,
     FormView as _FormView, TemplateView as _TemplateView)
 
-from base.managers import OptLogManager
 from common.core.db import MongoDB
 from common.core.exceptions import InvalidParameter
 from common.forms import queryset_to_list
@@ -27,7 +26,7 @@ from common.utils.datetime import to_aware_datetime
 from common.utils.text import str2iter, str2bool, str2int, str2float
 
 __all__ = [
-    'View', 'FormView', 'TemplateView', 'NoModelListView', 'AdvancedListView', 'BulkDeleteView',
+    'View', 'FormView', 'TemplateView', 'AdvancedListView', 'BulkDeleteView',
     'ListView', 'CreateView', 'DetailView', 'UpdateView', 'DeleteView'
 ]
 
@@ -64,77 +63,6 @@ class ListView(ResponseMixin, BaseViewMixin, _ListView):
     def get(self, request, *args, **kwargs):
         self.object_list = self.get_object_list(**kwargs)
         return self.render_to_json_response(data=self.object_list)
-
-
-class NoModelListView(ListView):
-    paginator_class = Paginator  # 默认MySQL分页
-    page_kwarg = 'page'
-    # 要显示的外键的反查询集，在这里填对应model的名字（全小写）。
-    related_sets: tuple = None
-    # 要显示的正向一对多/多对多的查询集
-    many_to_many_fields: tuple = None
-    collection = None
-    show_all = False
-    total_length = None
-
-    def __init__(self):
-        self.object_list = None
-        super().__init__()
-
-    def __new__(cls, *args, **kwargs):
-        super_new = super().__new__
-        cls.check_attr()
-        return super_new(cls)
-
-    @classmethod
-    def check_attr(cls):
-        if cls.related_sets and not isinstance(cls.related_sets, tuple):
-            raise AttributeError('\'related_sets\' must be a tuple.')
-        if cls.many_to_many_fields and not isinstance(cls.many_to_many_fields, tuple):
-            raise AttributeError('\'many_to_many_fields\' must be a tuple.')
-
-    def get_object_list(self, **kwargs):
-        """
-        Paginate the queryset and return paged list of items
-        """
-        # filter & order
-        queryset = super().get_object_list(**kwargs)
-        # queryset = self.get_queryset()
-
-        self.total_length = len(queryset)
-
-        # pagination
-        page_size = self.get_page_size()
-        if page_size and not self.get_show_all():
-            try:
-                paginator, page, self.object_list, has_another_page = self.paginate_queryset(
-                    queryset, page_size)
-            except Http404:
-                # this is for frontend pagination
-                return list()
-            self.paginator = paginator
-            self.page = page
-        else:
-            self.object_list = queryset
-        if self.paginator_class is MongoPaginator:
-            # make collection result to list
-            self.object_list = list(self.object_list)
-        return self.object_list
-
-    def get_ordering(self):
-        """Return the field or fields to use for ordering the queryset."""
-        return self.request.GET.get('orderBy') or self.ordering
-
-    def get_page_size(self):
-        return str2int(self.request.GET.get('pageSize'), default=10)
-
-    def get_show_all(self):
-        self.show_all = str2bool(self.request.GET.get('all', False))
-        return self.show_all
-
-    def get_queryset(self):
-        queryset = []
-        return queryset
 
 
 class AdvancedListView(ListView):
