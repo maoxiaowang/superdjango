@@ -36,7 +36,6 @@ class View(BaseViewMixin, ResponseMixin, _View):
 
     def dispatch(self, request, *args, **kwargs):
         response = super().dispatch(request, *args, **kwargs)
-        self.request.opt_obj = self.opt_log()
         return response
 
 
@@ -45,7 +44,6 @@ class FormView(BaseViewMixin, FormValidationMixin, ResponseMixin, _FormView):
 
     def put(self, *args, **kwargs):
         self.request.POST = QueryDict(self.request.body)
-        self.request.opt_obj = self.opt_log()
         return super().put(*args, **kwargs)
 
 
@@ -435,9 +433,6 @@ class DetailView(ResponseMixin, BaseViewMixin, _DetailView):
 
     def get(self, request, *args, **kwargs):
         self.object = self.get_object()
-        # custom log
-        self.request.opt_obj = self.opt_log()
-        print(self.render_to_json_response(data=self.object))
         return self.render_to_json_response(data=self.object)
 
 
@@ -450,14 +445,9 @@ class CreateView(ResponseMixin, BaseViewMixin, FormValidationMixin,
         # We don't know the object name until saved it, use verbose_name instead of it
         self.object = None
 
-        self.opt_logger = OptLogManager(request)
-        # custom log
-        self.request.opt_obj = self.opt_log()
-
         form = self.get_form()
         if form.is_valid():
             response = self.form_valid(form)
-            self.request.opt_obj = self.object
             return response
         else:
             return self.form_invalid(form)
@@ -478,9 +468,6 @@ class UpdateView(ResponseMixin, BaseViewMixin, FormValidationMixin,
 
     def post(self, request, *args, **kwargs):
         self.object = self.get_object()
-
-        # custom log
-        self.request.opt_obj = self.opt_log()
 
         form = self.get_form()
         if form.is_valid():
@@ -510,8 +497,6 @@ class DeleteView(ResponseMixin, BaseViewMixin, _DeleteView):
         self.object = self.get_object()
 
         # prepare for operation log
-        # custom log
-        self.request.opt_obj = self.opt_log()
 
         self.object.request_user = self.request.user
 
@@ -590,7 +575,6 @@ class BulkDeleteView(DeleteView):
         # prepare operation log
         # objs_str = ', '.join([obj.__str__() for obj in self.queryset]).rstrip()
         # custom log
-        self.request.opt_obj = self.opt_log()
 
         # reserve a list of queryset which can be used in next steps
         self.queryset_list = queryset_to_list(self.queryset)

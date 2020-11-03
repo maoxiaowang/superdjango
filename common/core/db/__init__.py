@@ -119,9 +119,6 @@ class MongoDB:
     def col(self, db, col):
         return self.client[db][col]
 
-    def col_opt_log(self):
-        return self.col('logs', 'operations')
-
 
 if __name__ == '__main__':
     # test mongodb
