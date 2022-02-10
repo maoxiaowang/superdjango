@@ -1,43 +1,49 @@
 """
 Project settings
 """
-import os
+import path
 from configparser import ConfigParser
-from common.utils.text import str2bool
+
 from common.log import default_logger as logger
 
 __all__ = [
-    'conf_path',
     'sys_settings'
 ]
-
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
 parser = ConfigParser()
-conf_path = os.path.join(BASE_DIR, 'settings.ini')
+conf_path = os.path.join(Path(__file__).resolve().parent.parent, 'settings.ini')
+# settings.ini放在项目根目录下
 parser.read(conf_path)
+
+DEFAULT_SECTION = 'DEFAULT'
+ALLOW_UNDEFINED_OPTIONS = True
 
 
 class BaseSection:
-    section = None
 
     def __getattr__(self, item):
         """
         通过注解类型获取配置的值
         """
-        options = self.__annotations__.keys()
-        if item not in options:
-            logger.warning("No such options defined in section [%s]." % self.section)
-            raise AttributeError("No such options defined in section [%s]." % self.section)
-        for option, a_type in self.__annotations__.items():
+        option_keys = self.__annotations__.keys()
+        options = self.__annotations__
+        cls_name = self.__class__.__name__
+        section_name = cls_name if cls_name == DEFAULT_SECTION else cls_name.lower()
+        if item not in option_keys:
+            if ALLOW_UNDEFINED_OPTIONS:
+                # build undefined option
+                options[item] = str
+            else:
+                logger.warning("No option '%s' defined in section %s." % (item, section_name))
+                raise AttributeError("No option '%s' defined in section %s." % (item, section_name))
+        for option, a_type in options.items():
             if item == option:
                 value = None
                 try:
-                    value = parser.get(self.section, option)
+                    value = parser.get(section_name, option)
                 except Exception as e:
-                    logger.warning("配置文件属性获取错误", e)
+                    logger.error("Failed to get option '%s' from section '%s'" % (option, section_name), e)
                 if a_type is bool:
-                    return str2bool(value)
+                    return str(value)
                 if value is None:
                     return value
                 return a_type.__call__(value)
@@ -48,8 +54,6 @@ class BaseSection:
         检查不支持的注解类型
         """
         super_new = super().__new__
-        if cls.section is None:
-            raise AttributeError("The attribute 'section' requires a string value.")
         for attr, val in getattr(cls, '__annotations__', {}).items():
             if val not in (str, int, float, bool):
                 raise AttributeError(
@@ -58,17 +62,15 @@ class BaseSection:
         return super_new(cls)
 
 
-class Default(BaseSection):
-    section = 'DEFAULT'
+class DEFAULT(BaseSection):
     # add more options configured in settings.ini
-    host: str
-    debug: bool
+    # host: str
+    # debug: bool
     log_dir: str
-    session_age_seconds: int
+    # session_age_seconds: int
 
 
 class MySQL(BaseSection):
-    section = 'mysql'
     host: str
     port: int
     user: str
@@ -76,23 +78,14 @@ class MySQL(BaseSection):
     name: str
 
 
-# class MongoDB(BaseSection):
-#     section = 'mongodb'
-#     host: str
-#     port: int
-
-
 class Memcached(BaseSection):
-    section = 'memcached'
-
     @property
     def servers(self):
-        value = parser.get('memcached', 'servers')
+        value = self.parser.get('memcached', 'servers')
         return [item.strip() for item in value.split(',')]
 
 
 class Redis(BaseSection):
-    section = 'redis'
     host: str
     port: int
     password: str
@@ -104,22 +97,6 @@ class Redis(BaseSection):
                 {'host': self.host, 'port': self.port, 'password': self.password,
                  'default_db': self.default_db}
                 )
-
-
-# class RabbitMQ(BaseSection):
-#     section = 'rabbitmq'
-#     host: str
-#     port: int
-#     user: str
-#     password: str
-#     celery_vhost: str
-#
-#     @property
-#     def broker_url(self):
-#         return ('amqp://%(user)s:%(password)s@%(host)s:%(port)d/%(vhost)s' %
-#                 {'host': self.host, 'port': self.port, 'user': self.user,
-#                  'password': self.password, 'vhost': self.celery_vhost}
-#                 )
 
 
 class Security:
@@ -143,7 +120,6 @@ class Security:
 
 
 class Email(BaseSection):
-    section = 'email'
     email_host: str
     email_port: int
     email_host_user: str
@@ -151,7 +127,7 @@ class Email(BaseSection):
 
 
 class SystemSettings:
-    default = Default()
+    DEFAULT = DEFAULT()
     mysql = MySQL()
     memcached = Memcached()
     redis = Redis()
@@ -160,3 +136,6 @@ class SystemSettings:
 
 
 sys_settings = SystemSettings()
+
+if __name__ == "__main__":
+    print(sys_settings.DEFAULT.log_dir)
